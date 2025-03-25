@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
 import numpy as np
 
-st.set_page_config(page_title="Enhanced 3D Readiness Chart with Pins (Artificial data)", layout="wide")
+st.set_page_config(page_title="Final 3D Readiness Chart (Artificial data)", layout="wide")
 
 @st.cache_data
 def load_data():
@@ -13,8 +13,8 @@ def load_data():
 
 df = load_data()
 
-st.title("📡 Enhanced 3D Readiness Chart with Pins (Artificial data)")
-st.markdown("This interactive chart includes colored pins from each data point to the base for better height perception.")
+st.title("📡 Final 3D Readiness Chart with Pins and Contours (Artificial data)")
+st.markdown("This version includes surface contours, colored pins, and enhanced readability.")
 
 x_col = "Mission Complexity"
 y_col = "Maintenance Burden"
@@ -35,7 +35,7 @@ y_range = np.linspace(y.min(), y.max(), 30)
 x_mesh, y_mesh = np.meshgrid(x_range, y_range)
 z_mesh = model.predict(np.column_stack((x_mesh.ravel(), y_mesh.ravel()))).reshape(x_mesh.shape)
 
-# Create vertical lines ("pins")
+# Vertical pins
 lines = []
 for xi, yi, zi in zip(x, y, z):
     lines.append(go.Scatter3d(
@@ -45,9 +45,22 @@ for xi, yi, zi in zip(x, y, z):
         showlegend=False
     ))
 
-# Create surface and scatter points
-surface = go.Surface(x=x_mesh, y=y_mesh, z=z_mesh, colorscale="Viridis", opacity=0.6)
+# Surface with contours and reduced opacity
+surface = go.Surface(
+    x=x_mesh, y=y_mesh, z=z_mesh,
+    colorscale="Viridis",
+    opacity=0.9,
+    contours=dict(
+        z=dict(
+            show=True,
+            usecolormap=True,
+            highlightcolor="white",
+            project_z=True
+        )
+    )
+)
 
+# Scatter dots
 scatter = go.Scatter3d(
     x=x, y=y, z=z,
     mode="markers",
@@ -60,12 +73,11 @@ scatter = go.Scatter3d(
         cmax=df[z_col].max()
     ),
     text=df["Base"],
-    hovertemplate="Base: %{text}<br>Mission Complexity: %{x}<br>Maintenance Burden: %{y}<br>Readiness: %{z}<extra></extra>"
+    hovertemplate="Base: %{text}<br>" + x_col + ": %{x}<br>" + y_col + ": %{y}<br>Readiness: %{z}<extra></extra>"
 )
 
 fig = go.Figure(data=[surface, scatter] + lines)
 
-# Update layout with white grid lines
 fig.update_layout(
     scene=dict(
         xaxis_title=x_col,
@@ -83,9 +95,8 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("📊 Smart Interpretation Summary")
 st.markdown(f'''
-- This 3D surface plot shows a **strong inverse relationship** between readiness and both mission complexity and maintenance burden.
-- The regression surface explains **{r2:.2f}** of the variance in readiness (R² score).
-- Colored pins enhance height visibility for each base.
-- White grid lines provide better contrast for visual orientation.
-- Prioritize interventions at bases with high mission complexity and unresolved maintenance burdens.
+- This enhanced 3D chart includes surface contours and more visible slopes.
+- Vertical pins and color-coded markers highlight each base’s readiness.
+- The regression surface explains **{r2:.2f}** of readiness variance.
+- Prioritize support for bases with high mission complexity and elevated maintenance.
 ''')
