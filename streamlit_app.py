@@ -1,102 +1,64 @@
 
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
-from sklearn.linear_model import LinearRegression
-import numpy as np
+import pydeck as pdk
 
-st.set_page_config(page_title="Final 3D Readiness Chart (Artificial data)", layout="wide")
+st.set_page_config(page_title="Readiness Map by Quartile (Artificial data)", layout="wide")
 
 @st.cache_data
 def load_data():
-    return pd.read_csv("USAF_3D_Data.csv")
+    return pd.read_csv("USAF_100_Base_Data.csv")
 
 df = load_data()
 
-st.title("📡 Final 3D Readiness Chart with Pins and Contours (Artificial data)")
-st.markdown("This version includes surface contours, colored pins, and enhanced readability.")
+st.title("🗺️ Mission Readiness Map by Quartile (Artificial data)")
+st.markdown("Bases are color-coded by quartile of readiness score (green = highest, red = lowest).")
 
-x_col = "Mission Complexity"
-y_col = "Maintenance Burden"
-z_col = "Readiness Score"
+# Compute quartiles
+q1 = df["Readiness"].quantile(0.25)
+q2 = df["Readiness"].quantile(0.50)
+q3 = df["Readiness"].quantile(0.75)
 
-x = df[x_col]
-y = df[y_col]
-z = df[z_col]
+def assign_color(readiness):
+    if readiness <= q1:
+        return [255, 0, 0]       # Red
+    elif readiness <= q2:
+        return [255, 165, 0]     # Orange
+    elif readiness <= q3:
+        return [255, 255, 0]     # Yellow
+    else:
+        return [0, 200, 0]       # Green
 
-model = LinearRegression()
-X = np.column_stack((x, y))
-model.fit(X, z)
-z_pred = model.predict(X)
-r2 = model.score(X, z)
+df["color"] = df["Readiness"].apply(assign_color)
 
-x_range = np.linspace(x.min(), x.max(), 30)
-y_range = np.linspace(y.min(), y.max(), 30)
-x_mesh, y_mesh = np.meshgrid(x_range, y_range)
-z_mesh = model.predict(np.column_stack((x_mesh.ravel(), y_mesh.ravel()))).reshape(x_mesh.shape)
-
-# Vertical pins
-lines = []
-for xi, yi, zi in zip(x, y, z):
-    lines.append(go.Scatter3d(
-        x=[xi, xi], y=[yi, yi], z=[0, zi],
-        mode="lines",
-        line=dict(color="white", width=2),
-        showlegend=False
-    ))
-
-# Surface with contours and reduced opacity
-surface = go.Surface(
-    x=x_mesh, y=y_mesh, z=z_mesh,
-    colorscale="Viridis",
-    opacity=0.8,
-    contours=dict(
-        z=dict(
-            show=True,
-            usecolormap=True,
-            highlightcolor="white",
-            project_z=True
-        )
-    )
+# Map layer
+layer = pdk.Layer(
+    "ScatterplotLayer",
+    data=df,
+    get_position="[Longitude, Latitude]",
+    get_color="color",
+    get_radius=30000,
+    pickable=True,
 )
 
-# Scatter dots
-scatter = go.Scatter3d(
-    x=x, y=y, z=z,
-    mode="markers",
-    marker=dict(
-        size=6,
-        color=z,
-        colorscale="RdYlGn",
-        colorbar=dict(title="Readiness"),
-        cmin=df[z_col].min(),
-        cmax=df[z_col].max()
-    ),
-    text=df["Base"],
-    hovertemplate="Base: %{text}<br>" + x_col + ": %{x}<br>" + y_col + ": %{y}<br>Readiness: %{z}<extra></extra>"
+# View settings
+view_state = pdk.ViewState(
+    latitude=df["Latitude"].mean(),
+    longitude=df["Longitude"].mean(),
+    zoom=4,
+    pitch=30,
 )
 
-fig = go.Figure(data=[surface, scatter] + lines)
+st.pydeck_chart(pdk.Deck(
+    layers=[layer],
+    initial_view_state=view_state,
+    tooltip={"text": "Base: {Base}\nReadiness: {Readiness}"}
+))
 
-fig.update_layout(
-    scene=dict(
-        xaxis_title=x_col,
-        yaxis_title=y_col,
-        zaxis_title=z_col,
-        xaxis=dict(showgrid=True, gridcolor="white"),
-        yaxis=dict(showgrid=True, gridcolor="white"),
-        zaxis=dict(showgrid=True, gridcolor="white")
-    ),
-    margin=dict(l=0, r=0, b=0, t=30),
-    height=750
-)
-
-st.plotly_chart(fig, use_container_width=True)
-
-st.subheader("📊 Smart Interpretation Summary")
-st.markdown(f'''
-- This enhanced 3D chart includes surface contours and more visible slopes.
-- Vertical pins and color-coded markers highlight each base’s readiness.
-- The regression surface explains **{r2:.2f}** of readiness variance.
-- Prioritize support for bases with high mission complexity and elevated maintenance.
-''')
+# Insight summary
+st.subheader("📊 Quartile-Based Readiness Summary")
+st.markdown(f"- 🟥 **Q1 (Lowest Readiness ≤ {q1:.1f})**")
+st.markdown(f"- 🟧 **Q2 (≤ {q2:.1f})**")
+st.markdown(f"- 🟨 **Q3 (≤ {q3:.1f})**")
+st.markdown("- 🟩 **Q4 (Highest Readiness)**")
+st.markdown("Use color patterns to locate low-readiness clusters and strategic performance zones.")
