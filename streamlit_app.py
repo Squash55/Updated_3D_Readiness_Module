@@ -49,7 +49,7 @@ for xi, yi, zi in zip(x, y, z):
 surface = go.Surface(
     x=x_mesh, y=y_mesh, z=z_mesh,
     colorscale="Viridis",
-    opacity=0.9,
+    opacity=0.8,
     contours=dict(
         z=dict(
             show=True,
